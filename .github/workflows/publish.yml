@@ -1,0 +1,46 @@
+name: Publish demo site
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 30); do
+            if gh release download demo --pattern photogram-dist.zip --output dist.zip --repo "$GITHUB_REPOSITORY" --clobber; then
+              echo "asset downloaded"
+              exit 0
+            fi
+            echo "waiting for release asset..."
+            sleep 10
+          done
+          echo "asset never appeared" >&2
+          exit 1
+
+      - name: Unpack
+        run: |
+          rm -rf site
+          mkdir site
+          unzip -q dist.zip -d site
+
+      - name: Deploy to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd site
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Publish demo site"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages:gh-pages
